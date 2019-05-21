@@ -1,4 +1,5 @@
 # R-Wine-Project
+Spring 2019 5205 FRAMEWORKS & METHODS II Group Project
 
 Description of the data:
 The dataset is shared by Zack Thoutt on Kaggle.com planning to use deep learning to predict the wine variety using words in the description/review. The dataset is built to create a predictive model to identify wines through a blind tasting as a master sommelier would. The data was scraped from WineEnthusiast during the week of June 15th, 2017. 
