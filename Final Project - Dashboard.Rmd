@@ -1,0 +1,77 @@
+---
+title: "R Final Project"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(rmarkdown)
+library(knitr)
+library(Hmisc)
+library(DT)
+
+library(data.table)
+assignInNamespace("cedta.override", c(data.table:::cedta.override,"rmarkdown"), "data.table")
+
+
+opts_chunk$set(echo = FALSE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+
+```
+
+
+```{r read_data, include=FALSE}
+setwd('C:/Users/qianx/OneDrive/School/Columbia University/Spring 2019/5205 FRAMEWORKS & METHODS II/Group Project/Data')
+wine.data.clean = read.csv('data.new.csv')
+```
+
+
+```{r constants}
+wine.data.clean$year_range <- cut2(x = wine.data.clean$year, cuts = c(1995, 2000, 2005, 2010))
+
+wine.type.variables <- c("white wine","red wine")
+taste.variables <- c("fruit", "rich", "fresh", "dry", "sweet")
+age.variables <- unique(wine.data.clean$year_range)
+country.variables <- as.character(unique(wine.data.clean$country))
+
+```
+
+
+Welcome
+=====================================  
+
+WHAT DO YOU WANT TO DRINK TODAY???
+
+Application
+===================================
+
+
+Row {data-height=500}
+-------------------------------------
+
+```{r respondents}
+inputPanel(
+  selectInput(inputId = "a_wine_type", label = "Wine Type", choices = wine.type.variables, selected = wine.type.variables[1]),
+  selectInput(inputId = "a_taste", label = "Taste", choices = taste.variables, selected = taste.variables[1]),
+  selectInput(inputId = "a_age", label = "Age", choices = age.variables, selected = age.variables[1]),
+  selectInput(inputId = "a_country", label = "Country", choices = country.variables, selected = country.variables[1]),
+  numericInput(inputId = "a_budget", label = "Budget", value = 4),
+  checkboxInput(inputId = "a_price_sorted", label = "price_descending", value=TRUE)
+
+)
+#input <- list(a_wine_type = wine.type.variables[1], a_taste = taste.variables[1], a_age = age.variables[1], a_country = country.variables[1], a_budget = 1000)
+
+renderDataTable({
+  
+  if(input$a_price_sorted == TRUE){
+  setorderv(x = wine.data.clean, cols = "price", order = -1)
+}  
+  
+  recommendation <- wine.data.clean[which(grepl(pattern = input$a_wine_type, x = wine.data.clean$description) & grepl(pattern = input$a_taste, x = wine.data.clean$description) & grepl(pattern = input$a_country, x = wine.data.clean$country) & wine.data.clean$year_range == input$a_age & wine.data.clean$price <= input$a_budget) , c("title", "price")]
+  datatable(as.data.table(recommendation))
+  
+})
+```
+

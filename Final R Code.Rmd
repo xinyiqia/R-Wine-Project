@@ -1,0 +1,288 @@
+---
+title: "Final Code"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Importing Data
+dataset "data" is the original data, meaning the raw data we downloaded from Kaggle.com
+
+```{r cars}
+```{r}
+setwd('/Users/iriszhao/Documents/framework 2/')
+data <- read.csv("winemag-data-130k-v2.csv")
+
+```
+
+##Data cleaning
+
+In this section, we omited missing valus, and have the year of every wine extacted from wines' titles, making year the thirteenth variable of the dataset.
+
+```{r data cleaning}
+summary(data)
+
+#convert the blank cells into NA
+data[data == ""] <- NA
+
+#remove irrelevant or duplicated variables
+data <- subset(data, select = -c(X,region_2,taster_twitter_handle))
+
+library(mice)
+md.pattern(data)
+
+#analyze percentage of NA in the whole dataset
+sapply(data, function(col)sum(is.na(col))/length(col))
+
+#remove observations with NA in variable 'country', 'variety', 'designation', 'region_1', and 'taster_name'
+data_clean <- data[!(is.na(data$country)), ]
+data_clean <- data_clean[!(is.na(data_clean$variety)), ]
+data_clean <- data_clean[!(is.na(data_clean$designation)),]
+data_clean <- data_clean[!(is.na(data_clean$region_1)),]
+data_clean <- data_clean[!(is.na(data_clean$taster_name)),]
+md.pattern(data_clean)
+summary(data_clean)
+
+#extracing year from the wine's title and use it as a new variable added to the dataset
+library(stringr)
+Numextract <- function(string){
+  numb = as.numeric(unlist(regmatches(string,gregexpr("[[:digit:]]+\\.*[[:digit:]]*",string))))
+  if (length(numb) == 0){
+  numb = NA}
+  else if (length(numb[numb<2020 & numb>1980]) == 0){
+    numb = NA
+  }
+  else {
+    numb = numb[numb<2020 & numb>1980]
+  }
+ numb
+}
+year <- c(1:57748)
+for (i in 1:57748){
+  year[i] <- Numextract(data_clean$title[i])
+}
+data_year <- cbind(data_clean,year)
+data_year <- data_year[!(is.na(data_year$year)),]
+summary(data_year$year)
+
+#impute missing value
+init <- mice(data_year, maxit=0)
+meth <- init$method
+predM <- init$predictorMatrix
+predM[,1:12] <- 0
+
+#select those variables as predictors for imputation
+predM[,c("points","country","variety","year")] <- 1
+
+set.seed(666)
+imputed <- mice(data_year,method = meth, predictorMatrix = predM, m=5)
+imputed <- complete(imputed)
+wine <- imputed[!(imputed$price < 0),]
+write.csv(wine,file = 'data.new.csv',row.names = FALSE)
+```
+
+##Most Common Words - frequency count
+
+In this section, we  would like to have a better understanding of the description giving in the dataset, so we found out the 50 most common words (excluding stopwords, and other useless words such as  "wine","drink","it's","nose","notes","offers" in this  certain case)
+
+```{r}
+wine<-read.csv(data.new.csv)
+install.packages('qdap')
+library(qdap)
+freq_term_table <- freq_terms(text.var = wine$description,top = 50,stopwords = c(Top200Words,"wine","drink","it's","nose","notes","offers"))
+plot(freq_term_table)
+```
+
+
+##Word Cloud
+As an add-on to the previous analsis, we built a word cloud sizing 100 words of the wine descriptions. 
+
+```{r}
+#install.packages('tidytext')
+library(wordcloud)
+library(dplyr)
+library(tidytext)
+wine$description <- as.character(wine$description)
+wordcloudData = 
+  wine%>%
+  group_by(taster_name)%>%
+  unnest_tokens(output=word,input=description)%>%
+  anti_join(stop_words)%>%
+  group_by(word)%>%
+  summarize(freq = n())%>%
+  arrange(desc(freq))%>%
+  ungroup()%>%
+  data.frame()
+
+#install.packages("RColorBrewer")
+library(RColorBrewer)
+library(wordcloud)
+wordcloud(words = wordcloudData$word,wordcloudData$freq,scale=c(2,0.5),max.words = 100,colors=brewer.pal(9,"Spectral"))
+```
+
+###Predictive Models - Tree V.S.Linear Regression
+
+This section is an add-on the the word cloud. It is designed to understand what kind of word in decription would have an impact on the points. We used both tree and liner regression for prediction, and tree is proven to be a better model based on rmse.
+
+```{r}
+#predictive models with document term matrix - inverse document frequency 
+library(tm)
+corpus = Corpus(VectorSource(wine$description))
+corpus = tm_map(corpus, FUN = content_transformer(tolower))
+corpus = tm_map(corpus, FUN = removePunctuation)
+corpus = tm_map(corpus, FUN = removeWords, c(stopwords('english')))
+corpus = tm_map(corpus, FUN = stripWhitespace)
+dict = findFreqTerms(DocumentTermMatrix(Corpus(VectorSource(wine$description))),lowfreq = 0)
+dict_corpus = Corpus(VectorSource(dict))
+corpus = tm_map(corpus, FUN = stemDocument)
+dtm_tfidf = DocumentTermMatrix(x=corpus,control = list(weighting=function(x) weightTfIdf(x,normalize=F)))
+xdtm_tfidf = removeSparseTerms(dtm_tfidf, sparse = 0.95)
+xdtm_tfidf = as.data.frame(as.matrix(xdtm_tfidf))
+colnames(xdtm_tfidf) = stemCompletion(x = colnames(xdtm_tfidf),dictionary = dict_corpus, type='prevalent')
+colnames(xdtm_tfidf) = make.names(colnames(xdtm_tfidf))
+wine_tfidf = cbind(points = wine$points,xdtm_tfidf)
+set.seed(666)
+split = sample(1:nrow(wine), size = 0.7*nrow(wine))
+train = wine_tfidf[split,]
+test = wine_tfidf[-split,]
+
+library(rpart); library(rpart.plot)
+set.seed(666)
+tree = rpart(points~.,train) 
+rpart.plot(tree)
+pred_tree = predict(tree, newdata=test)
+rmse_tree = sqrt(mean((pred_tree - test$points)^2))
+rmse_tree#2.778244
+
+regression = lm(points~., train)
+summary(regression)
+pred_reg = predict(regression, newdata=test)
+rmse_reg = sqrt(mean((pred_reg-test$points)^2))
+rmse_reg#2.466472
+#by comparing with the RMSE from linear regression model, we can conclude the performance of tree model is not as good as linear model
+```
+
+#Select wine based on selected criteria example
+
+This section is an application of wine selection. If a user choose certain features he or she wants, the system will returrn a/some wine recommendations.
+
+```{r}
+install.packages('Hmisc')
+library(ggplot2)
+library(Hmisc)
+summary(wine$price)
+model3= lm(points~country+price+variety+year,data=wine)
+summary(model3)
+
+year_distribution<-ggplot(data = wine,aes(x=year))+geom_bar(stat = "count")
+wine$year_range <- cut2(x = wine$year, cuts = c(1995, 2000, 2005, 2010))
+wine$year_range = as.character(wine$year_range)
+
+
+wine.type.variables <- c("white wine","red wine")
+
+#Taste varirable are extracted from top words
+taste.variables <- c("fruit", "rich", "fresh", "dry", "sweet")
+age.variables <- unique(as.character(unique(wine$year_range)))
+country.variables <- as.character(unique(wine$country))
+
+recommendation <- wine[which(grepl(pattern = wine.type.variables[1], x = wine$description) & grepl(pattern = taste.variables[1], x = wine$description) & grepl(pattern = country.variables[1], x = wine$country) & wine$year_range == age.variables[1]), c("title", "price")]
+recommendation
+```
+
+###Recommendation system 
+##recommend wine to  taster
+
+This is the second part of recommendation. Instead of facing ordinary clients/customers, this system is designed for tasters. This rercommendation is based on tasters' decription. 
+
+```{r}
+library(data.table)
+wine.subset <- subset(x = wine, select = c(taster_name, title, points))
+library(recommenderlab)
+data_matrix = as(wine.subset,Class = 'realRatingMatrix')
+as(data_matrix,'matrix')
+colMeans(data_matrix)
+
+#User-based Collaborative Filtering
+recommenderRegistry$get_entry("UBCF", type ="realRatingMatrix")
+recom_ubcf = Recommender(data_matrix,'UBCF',parameter=list(method='Cosine',nn=2,normalize='Z-score'))
+pred = predict(recom_ubcf,data_matrix,type = 'ratingMatrix')
+as(pred,'matrix')
+# top wine recommendation
+pred = predict(recom_ubcf, data_matrix, n = 1)
+getList(pred) 
+```
+
+###Examine the relationship between the length of review and points
+This section is to understand how if there is a corelation between the length of the reviews and points.
+```{r}
+# distribution of reviews: number of reviews vs points
+library(ggplot2);
+ggplot(data=wine, aes(x=points))+
+  geom_histogram(aes(y = ..density..),breaks=seq(80,100,by=1),fill ='grey')+
+  geom_density(col='blue')+
+  xlim(c(79,101))
+
+# examine the relationship between the length of the review and points
+library(stringr)
+mean_words = mean(str_count(string = wine$description, pattern = '\\S+'))
+mean_words
+cor(str_count(string = wine$description, pattern = '\\S+'),wine$points)  #0.4734295 -> longer the length of the review, higher the points
+```
+
+
+###Association rule
+
+```{r}
+## select relevant variables
+library(arules)
+library(dplyr)
+wine_rules = wine %>% select(points, price, region_1, taster_name, variety, year)
+wine_rules$year = as.factor(as.character(wine_rules$year))
+
+summary(wine_rules)
+
+# Finding distribution of ratings
+library(ggplot2)
+wine_rules %>% group_by(points) %>% summarise(num_count = n()) %>%
+  arrange(points) %>%
+  ggplot(aes(x = points, y = num_count)) +
+  geom_bar(stat = "identity")
+
+summary(wine_rules$price)
+
+#Converting price, points into categorical data
+#1) Categorizing price and points
+wine_rules$price = 
+  case_when(
+    wine_rules$price <= 20 ~ "price range <= 20",
+    wine_rules$price <= 30 ~ "price range 20 ~ 30",
+    wine_rules$price <= 49 ~ "price range 30 ~ 49",
+    TRUE ~ "price range > 49"
+  )
+
+wine_rules$points = 
+  case_when(
+    wine_rules$points <= 85 ~ "points range <= 85",
+    wine_rules$points <= 90 ~ "points range 85 ~ 90",
+    wine_rules$points <= 95 ~ "points range 90 ~ 95",
+    TRUE ~ "points range > 95"
+  )
+
+#2) Converting chracters to factor 
+wine_rules$price <- as.factor(wine_rules$price)
+wine_rules$points <- as.factor(wine_rules$points)
+
+#Finding rules
+rules = apriori(wine_rules, parameter = list(support = 0.01, confidence = 0.5), 
+                appearance = list (rhs=c("points=points range <= 85", "points=points range 85 ~ 90",
+                                         "points=points range 90 ~ 95", "points=points range > 95",
+                                         "price=price range <= 20", "price=price range 20 ~ 30",
+                                         "price=price range 30 ~ 49", "price=price range > 49")))
+# inspect(rules)
+##inspect(head(sort(rules, by = "confidence"), 10))
+rules::inspect(head(sort(rules, by= “confidence”),10)
+```
+
