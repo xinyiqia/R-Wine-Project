@@ -7,7 +7,7 @@ Source: https://www.kaggle.com/zynicide/wine-reviews
 Project Objective:
 This project is aiming at helping wine buyers search wine that best matches their needs and preferences. We start with our business goal and reverse engineer the process of designing such system to achieve our goal. The project includes 4 steps: 1) analyzing the data of existing wine buyers to design a questionnaire that can best reflect the needs and preferences of potential buyers. 2) Collecting the information from the questionnaire and query data from the database(wine dataset). 3) Returning a list of wine that best matches buyers’ interests. 4) Trying other techniques to find useful information to help wine buyers make decision. 
 
-Use of Analytical Techniques 
+Use of Analytical Techniques: 
 1)	Data cleaning: tidyr, mice package, cbind()
 2)	Data visualization: ggplot2
 3)	Text mining: freq_terms() in the qdap package, wordcloud
