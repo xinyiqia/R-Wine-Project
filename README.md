@@ -1,14 +1,13 @@
 # R-Wine-Project
-Background: For this Kaggle Project, a listing of over 25,000 Airbnb rentals in NYC is given. The goal is to predict the price for rentals using over 90 variables.
 
-# Description of the data:
+Description of the data:
 The dataset is shared by Zack Thoutt on Kaggle.com planning to use deep learning to predict the wine variety using words in the description/review. The dataset is built to create a predictive model to identify wines through a blind tasting as a master sommelier would. The data was scraped from WineEnthusiast during the week of June 15th, 2017. 
 Source: https://www.kaggle.com/zynicide/wine-reviews
 
-# Project Objective:
+Project Objective:
 This project is aiming at helping wine buyers search wine that best matches their needs and preferences. We start with our business goal and reverse engineer the process of designing such system to achieve our goal. The project includes 4 steps: 1) analyzing the data of existing wine buyers to design a questionnaire that can best reflect the needs and preferences of potential buyers. 2) Collecting the information from the questionnaire and query data from the database(wine dataset). 3) Returning a list of wine that best matches buyers’ interests. 4) Trying other techniques to find useful information to help wine buyers make decision. 
 
-# Use of Analytical Techniques 
+Use of Analytical Techniques 
 1)	Data cleaning: tidyr, mice package, cbind()
 2)	Data visualization: ggplot2
 3)	Text mining: freq_terms() in the qdap package, wordcloud
@@ -17,7 +16,7 @@ This project is aiming at helping wine buyers search wine that best matches thei
 6)	Predictive models: decision tree and linear regression
 7)	User based recommender system: recommenderlab package 
 
-# Submission:
+Submission:
 1. cleaned dataset (data.new.csv) 
 2. Working R code for Analysis (Working R code.Rmd)
 3. Final R Code for Analysis and Conclusions (Final R Code.Rmd) 
